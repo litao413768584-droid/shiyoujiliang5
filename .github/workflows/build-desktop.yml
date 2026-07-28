@@ -10,11 +10,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-exe:
     name: "Build Windows EXE"
-    permissions:
-      contents: write
     runs-on: windows-latest
 
     steps:
@@ -24,7 +25,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Rust stable
@@ -51,6 +52,7 @@ jobs:
 
       - name: Upload Windows Executable Artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Petroleum-Calculator-Windows-Installer
           path: |
@@ -60,8 +62,6 @@ jobs:
 
   build-apk:
     name: "Build Android APK"
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
 
     steps:
@@ -71,7 +71,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Set up Java 17
@@ -80,8 +80,16 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK
+      - name: Set up Android SDK & NDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11.0
+          packages: 'platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125'
+
+      - name: Export NDK Env
+        run: |
+          echo "NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Install Rust target for Android
         uses: dtolnay/rust-toolchain@stable
@@ -103,6 +111,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NDK_HOME: ${{ env.NDK_HOME }}
         with:
           tagName: v__VERSION__
           releaseName: '石油及沥青计量计算器 v__VERSION__'
@@ -113,6 +122,7 @@ jobs:
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Petroleum-Calculator-Android-APK
           path: |
