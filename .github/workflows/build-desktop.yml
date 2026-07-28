@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  build-exe:
+  build-windows-exe:
     name: "Build Windows EXE"
     runs-on: windows-latest
 
@@ -39,28 +39,33 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Tauri app (.exe)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: '石油及沥青计量计算器 v__VERSION__'
-          releaseBody: '石油及沥青计量计算器 Windows 桌面安装包 (.exe) 与 Android 安装包 (.apk)'
-          releaseDraft: true
-          prerelease: false
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Build Windows EXE via Tauri CLI
+        run: npx tauri build
 
       - name: Upload Windows Executable Artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: Petroleum-Calculator-Windows-Installer
+          name: Petroleum-Calculator-Windows-EXE
           path: |
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/*.exe
 
-  build-apk:
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-android-apk:
     name: "Build Android APK"
     runs-on: ubuntu-latest
 
@@ -104,27 +109,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build Web Assets
+        run: npm run build
+
       - name: Init Tauri Android
         run: npx tauri android init --ci
 
-      - name: Build Tauri app (.apk)
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Android APK via Tauri CLI
+        run: npx tauri android build --apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NDK_HOME: ${{ env.NDK_HOME }}
-        with:
-          tagName: v__VERSION__
-          releaseName: '石油及沥青计量计算器 v__VERSION__'
-          releaseBody: '石油及沥青计量计算器 Windows 桌面安装包 (.exe) 与 Android 安装包 (.apk)'
-          releaseDraft: true
-          prerelease: false
-          args: android build --apk
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: Petroleum-Calculator-Android-APK
           path: |
             src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             src-tauri/target/**/*.apk
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/target/**/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
