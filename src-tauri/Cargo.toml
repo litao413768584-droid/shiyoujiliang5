@@ -1,7 +1,7 @@
 [package]
 name = "asphalt_calculator"
 version = "1.0.0"
-description = "石油及沥青计量计算器 (ASTM D1250 / D4311)"
+description = "Petroleum and Asphalt Calculator (ASTM D1250 / D4311)"
 authors = ["litao"]
 edition = "2021"
 
