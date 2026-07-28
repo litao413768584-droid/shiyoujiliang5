@@ -1,6 +1,6 @@
 {
-  "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AsphaltCalculator",
+  "$schema": "https://schema.tauri.app/config/2.0.0.json",
+  "productName": "Petroleum Calculator",
   "version": "1.0.0",
   "identifier": "com.asphalt.calculator",
   "build": {
@@ -12,27 +12,22 @@
   "app": {
     "windows": [
       {
-        "title": "石油及沥青计量计算器",
-        "width": 1280,
-        "height": 850,
-        "resizable": true,
-        "fullscreen": false
+        "title": "Petroleum Calculator",
+        "width": 1200,
+        "height": 800,
+        "label": "main"
       }
-    ],
-    "security": {
-      "csp": null
-    }
+    ]
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
-      "icons/icon.ico",
-      "icons/icon.png"
+      "icons/icon.ico"
     ]
   }
 }
