@@ -45,7 +45,7 @@ jobs:
         run: npm run build
 
       - name: Build Windows EXE via Tauri CLI
-        run: npx tauri build
+        run: npx tauri build --bundles nsis
 
       - name: Upload Windows Executable Artifact
         uses: actions/upload-artifact@v4
@@ -127,7 +127,7 @@ jobs:
         run: chmod +x src-tauri/gen/android/gradlew
 
       - name: Build Android APK
-        run: npx tauri android build --apk
+        run: npx tauri android build --apk --debug
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
           ANDROID_NDK_ROOT: ${{ env.ANDROID_NDK_ROOT }}
@@ -139,7 +139,7 @@ jobs:
         with:
           name: Petroleum-Calculator-Android-APK
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/**/*.apk
             src-tauri/target/**/*.apk
           if-no-files-found: warn
 
@@ -148,6 +148,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
