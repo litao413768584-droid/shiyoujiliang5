@@ -30,6 +30,11 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install NSIS
+        run: choco install nsis -y
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -43,7 +48,7 @@ jobs:
         run: npm run build
 
       - name: Build Windows EXE via Tauri CLI
-        run: npx tauri build --bundles nsis
+        run: npx tauri build --verbose --bundles nsis
 
       - name: Upload Windows Executable Artifact
         uses: actions/upload-artifact@v4
@@ -87,28 +92,30 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK & NDK
+      - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11.0
-          packages: 'platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125'
 
-      - name: Detect & Set NDK Environment Variables
+      - name: Configure Android NDK
         run: |
-          NDK_PATH="$ANDROID_HOME/ndk/26.1.10909125"
-          if [ ! -d "$NDK_PATH" ]; then
-            NDK_PATH=$(find $ANDROID_HOME/ndk -maxdepth 1 -mindepth 1 | head -n 1)
+          if [ -n "$ANDROID_NDK_LATEST_HOME" ] && [ -d "$ANDROID_NDK_LATEST_HOME" ]; then
+            NDK_PATH="$ANDROID_NDK_LATEST_HOME"
+          elif [ -d "$ANDROID_HOME/ndk-bundle" ]; then
+            NDK_PATH="$ANDROID_HOME/ndk-bundle"
+          else
+            echo "Installing NDK via sdkmanager..."
+            yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --install "ndk;26.1.10909125" || true
+            NDK_PATH=$(find $ANDROID_HOME/ndk -maxdepth 1 -mindepth 1 2>/dev/null | head -n 1)
           fi
-          echo "Found NDK path: $NDK_PATH"
+          echo "Using NDK path: $NDK_PATH"
           echo "NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$NDK_PATH" >> $GITHUB_ENV
           echo "ANDROID_NDK_ROOT=$NDK_PATH" >> $GITHUB_ENV
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
 
-      - name: Install Rust toolchain & Android targets
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Add Android targets to rustup
+      - name: Add Android Rust targets
         run: rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
       - name: Install cargo-ndk
@@ -132,7 +139,7 @@ jobs:
         run: chmod +x src-tauri/gen/android/gradlew
 
       - name: Build Android APK
-        run: npx tauri android build --apk --debug
+        run: npx tauri android build --verbose --apk --debug
         env:
           NDK_HOME: ${{ env.NDK_HOME }}
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
@@ -145,6 +152,7 @@ jobs:
         with:
           name: Petroleum-Calculator-Android-APK
           path: |
+            src-tauri/gen/android/app/build/outputs/**/*.apk
             src-tauri/gen/android/**/*.apk
             src-tauri/target/**/*.apk
           if-no-files-found: warn
@@ -154,6 +162,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            src-tauri/gen/android/app/build/outputs/**/*.apk
             src-tauri/gen/android/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
