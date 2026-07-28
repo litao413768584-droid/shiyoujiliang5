@@ -1,0 +1,8 @@
+{
+  "name": "Remix 石油计量",
+  "description": "专业级石油计量与油品计算套件，提供计量表、储油罐测量、油船算仓、单位换算以及API度、十六烷指数、品温油温修正等20余种专业计算工具。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

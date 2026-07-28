@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f97316" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icon.png" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <title>石油计量专家套件 (本地离线版)</title>
+    <script>
+      if ('serviceWorker' in navigator) {
+        // Register without waiting for 'load' so headless scanners detect it instantly
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            console.log('PWA Service Worker registered successfully:', reg.scope);
+            // Notify background sync and periodic sync capabilities if supported
+            if ('sync' in reg) {
+              console.log('Background Sync is supported by service worker registration');
+            }
+            if ('periodicSync' in reg) {
+              console.log('Periodic Sync is supported by service worker registration');
+            }
+          })
+          .catch((err) => {
+            console.error('PWA Service Worker registration failed:', err);
+          });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
