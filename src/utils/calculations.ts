@@ -122,6 +122,27 @@ export function calculateAirDensity(densityVacKg: number): number {
   return densityVacKg - 1.1; // air buoyancy of standard weight
 }
 
+// Steel Tank Thermal Expansion Factor (Fst / CTSH)
+// Fst = 1 + coeff * (t_vol - t_std)
+// 例如体膨胀模式：1 + 0.0000120 * 3 * (t - 20) -> coeff = 0.000036 /°C
+// 罐壁面积模式：1 + 0.0000120 * 2 * (t - 20) -> coeff = 0.000024 /°C (GB/T 19779)
+export function calculateSteelExpansionFactor(
+  tempVol: number,
+  stdTemp: 15 | 20 | '60F' = 20,
+  coeff: number = 0.000036 // 热膨胀总体系数 (1/°C)
+): number {
+  if (stdTemp === '60F') {
+    const coeffF = coeff / 1.8;
+    const deltaT = tempVol - 60;
+    const fst = 1.0 + coeffF * deltaT;
+    return parseFloat(fst.toFixed(6));
+  } else {
+    const deltaT = tempVol - stdTemp;
+    const fst = 1.0 + coeff * deltaT;
+    return parseFloat(fst.toFixed(6));
+  }
+}
+
 // ==========================================
 // 2. Storage Tank Calculations
 // ==========================================

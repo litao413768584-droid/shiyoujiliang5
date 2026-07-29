@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { calculateStandardDensity, calculateVCF, calculateAsphaltVCF_D4311 } from '../utils/calculations';
+import { calculateStandardDensity, calculateVCF, calculateAsphaltVCF_D4311, calculateSteelExpansionFactor } from '../utils/calculations';
 import { 
   Calculator, 
   ClipboardList, 
@@ -12,7 +12,10 @@ import {
   Copy, 
   ArrowUpRight, 
   History, 
-  Check
+  Check,
+  Thermometer,
+  Box,
+  Layers
 } from 'lucide-react';
 
 interface HistoryItem {
@@ -24,10 +27,15 @@ interface HistoryItem {
     tempObs: string;
     densityObs: string;
     volumeObs: string;
+    tempVol?: string;
+    enableSteelExpansion?: boolean;
+    steelMaterial?: string;
   };
   results: {
     rhoStd: number;
     vcf: number;
+    fst?: number;
+    volCorrected?: number;
     gsv: number;
     weightVac: number;
     weightAir: number;
@@ -37,13 +45,19 @@ interface HistoryItem {
 
 export default function GaugingSheet() {
   const [densityObs, setDensityObs] = useState<string>('820'); // kg/m³
-  const [tempObs, setTempObs] = useState<string>('24.5'); // °C
+  const [tempObs, setTempObs] = useState<string>('24.5'); // °C (密度测定温度)
   const [volumeObs, setVolumeObs] = useState<string>('5000'); // m³ (Observed Volume)
+  const [tempVol, setTempVol] = useState<string>('24.5'); // °C (体积计算温度)
+  const [enableSteelExpansion, setEnableSteelExpansion] = useState<boolean>(false); // 是否计算钢膨
+  const [steelMaterial, setSteelMaterial] = useState<'carbon_3a' | 'carbon_2a' | 'stainless_3a' | 'stainless_2a' | 'custom'>('carbon_3a');
+  const [customSteelCoeff, setCustomSteelCoeff] = useState<string>('0.000036');
+
   const [oilType, setOilType] = useState<'crude' | 'product' | 'lube' | 'asphalt'>('product');
   const [standardTemp, setStandardTemp] = useState<15 | 20 | '60F'>(20);
   
   const [validationError, setValidationError] = useState<string | null>(null);
   const [tempError, setTempError] = useState<string | null>(null);
+  const [tempVolError, setTempVolError] = useState<string | null>(null);
   const [densityError, setDensityError] = useState<string | null>(null);
   const [volumeError, setVolumeError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -54,6 +68,8 @@ export default function GaugingSheet() {
   const [results, setResults] = useState<{
     rhoStd: number;
     vcf: number;
+    fst: number;          // 钢膨修正系数
+    volCorrected: number; // 修正后体积 (m³)
     gsv: number;
     weightVac: number;
     weightAir: number;
@@ -108,6 +124,31 @@ export default function GaugingSheet() {
       }
     }
     setTempError(null);
+    return true;
+  };
+
+  const validateTempVol = (val: string) => {
+    if (val.trim() === '') {
+      setTempVolError('体积温度不能为空');
+      return false;
+    }
+    const num = parseFloat(val);
+    if (isNaN(num)) {
+      setTempVolError('请输入合法的数值');
+      return false;
+    }
+    if (oilType === 'asphalt' && standardTemp === '60F') {
+      if (num < -58 || num > 482) {
+        setTempVolError('温度必须在 (-58.0°F ~ 482.0°F) 范围内');
+        return false;
+      }
+    } else {
+      if (num < -50 || num > 250) {
+        setTempVolError('温度必须在 (-50.0°C ~ 250.0°C) 范围内');
+        return false;
+      }
+    }
+    setTempVolError(null);
     return true;
   };
 
@@ -171,16 +212,18 @@ export default function GaugingSheet() {
 
     // Run all validations
     const isTempValid = validateTemp(tempObs);
+    const isTempVolValid = validateTempVol(tempVol);
     const isDensityValid = validateDensity(densityObs);
     const isVolumeValid = validateVolume(volumeObs);
 
-    if (!isTempValid || !isDensityValid || !isVolumeValid) {
+    if (!isTempValid || !isTempVolValid || !isDensityValid || !isVolumeValid) {
       setValidationError('请修正输入框下方的红色错误提示后再行计算！');
       return;
     }
 
     const rho = parseFloat(densityObs);
-    const temp = parseFloat(tempObs);
+    const tempD = parseFloat(tempObs); // 密度测定温度
+    const tempV = parseFloat(tempVol); // 体积测量温度
     const vol = parseFloat(volumeObs) || 0;
 
     let rhoStd = 0;
@@ -200,15 +243,36 @@ export default function GaugingSheet() {
         }
       }
       rhoStd = rhoInKg;
-      vcf = calculateAsphaltVCF_D4311(rho, temp, standardTemp);
+      // VCF 按照体积温度 tempV 计算
+      vcf = calculateAsphaltVCF_D4311(rho, tempV, standardTemp);
     } else {
-      const numericTemp = standardTemp === '60F' ? 15 : standardTemp;
-      rhoStd = calculateStandardDensity(rho, temp, numericTemp, oilType);
-      vcf = calculateVCF(rhoStd, temp, numericTemp, oilType);
+      const numericTempD = standardTemp === '60F' ? 15 : standardTemp;
+      rhoStd = calculateStandardDensity(rho, tempD, numericTempD, oilType);
+
+      // VCF 按照体积温度 tempV 计算
+      const numericTempV = standardTemp === '60F' ? 15 : standardTemp;
+      vcf = calculateVCF(rhoStd, tempV, numericTempV, oilType);
     }
 
-    // Gross Standard Volume (GSV)
-    const gsv = vol * vcf;
+    // 钢膨修正系数 Fst (按体积温度 tempV 计算)
+    let alphaCoeff = 0.000036; // 默认碳钢 3α: 1 + 0.0000120 * 3 * (t - t_std)
+    if (steelMaterial === 'carbon_2a') {
+      alphaCoeff = 0.000024; // 碳钢 2α: 1 + 0.0000120 * 2 * (t - t_std)
+    } else if (steelMaterial === 'stainless_3a') {
+      alphaCoeff = 0.000051; // 不锈钢 3α
+    } else if (steelMaterial === 'stainless_2a') {
+      alphaCoeff = 0.000034; // 不锈钢 2α
+    } else if (steelMaterial === 'custom') {
+      alphaCoeff = parseFloat(customSteelCoeff) || 0.000036;
+    }
+
+    const fst = enableSteelExpansion ? calculateSteelExpansionFactor(tempV, standardTemp, alphaCoeff) : 1.0;
+
+    // 修正后观测体积
+    const volCorrected = vol * fst;
+
+    // Gross Standard Volume (GSV) = 修正后体积 * VCF
+    const gsv = volCorrected * vcf;
 
     // Weight in Vacuum (t)
     const weightVac = gsv * (rhoStd / 1000);
@@ -243,6 +307,8 @@ export default function GaugingSheet() {
     const newResults = {
       rhoStd,
       vcf,
+      fst,
+      volCorrected: parseFloat(volCorrected.toFixed(3)),
       gsv: parseFloat(gsv.toFixed(3)),
       weightVac: parseFloat(weightVac.toFixed(3)),
       weightAir: parseFloat(weightAir.toFixed(3)),
@@ -261,10 +327,12 @@ export default function GaugingSheet() {
       timestamp: new Date().toLocaleString('zh-CN', { hour12: false }),
       oilType,
       standardTemp,
-      inputs: { tempObs, densityObs, volumeObs },
+      inputs: { tempObs, densityObs, volumeObs, tempVol, enableSteelExpansion, steelMaterial },
       results: {
         rhoStd,
         vcf,
+        fst,
+        volCorrected: newResults.volCorrected,
         gsv: newResults.gsv,
         weightVac: newResults.weightVac,
         weightAir: newResults.weightAir,
@@ -315,23 +383,28 @@ export default function GaugingSheet() {
   const handleClear = () => {
     setValidationError(null);
     setTempError(null);
+    setTempVolError(null);
     setDensityError(null);
     setVolumeError(null);
 
+    let defaultTemp = '24.5';
     if (oilType === 'product') {
       setDensityObs('820');
-      setTempObs('24.5');
+      defaultTemp = '24.5';
     } else if (oilType === 'crude') {
       setDensityObs('860');
-      setTempObs('28.0');
+      defaultTemp = '28.0';
     } else if (oilType === 'lube') {
       setDensityObs('885');
-      setTempObs('35.0');
+      defaultTemp = '35.0';
     } else if (oilType === 'asphalt') {
       setDensityObs('1015');
-      setTempObs(standardTemp === '60F' ? '275.0' : '135.0');
+      defaultTemp = standardTemp === '60F' ? '275.0' : '135.0';
     }
+    setTempObs(defaultTemp);
+    setTempVol(defaultTemp);
     setVolumeObs('5000');
+    setEnableSteelExpansion(false);
     setResults(null);
   };
 
@@ -342,15 +415,19 @@ export default function GaugingSheet() {
     setTempObs(item.inputs.tempObs);
     setDensityObs(item.inputs.densityObs);
     setVolumeObs(item.inputs.volumeObs);
+    setTempVol(item.inputs.tempVol || item.inputs.tempObs);
+    setEnableSteelExpansion(item.inputs.enableSteelExpansion || false);
     
     // Clear errors
     setValidationError(null);
     setTempError(null);
+    setTempVolError(null);
     setDensityError(null);
     setVolumeError(null);
 
     const rho = parseFloat(item.inputs.densityObs);
-    const temp = parseFloat(item.inputs.tempObs);
+    const tempD = parseFloat(item.inputs.tempObs);
+    const tempV = parseFloat(item.inputs.tempVol || item.inputs.tempObs);
     const vol = parseFloat(item.inputs.volumeObs) || 0;
 
     let rhoStd = 0;
@@ -358,14 +435,30 @@ export default function GaugingSheet() {
 
     if (item.oilType === 'asphalt') {
       rhoStd = rho;
-      vcf = calculateAsphaltVCF_D4311(rhoStd, temp, item.standardTemp);
+      vcf = calculateAsphaltVCF_D4311(rhoStd, tempV, item.standardTemp);
     } else {
-      const numericTemp = item.standardTemp === '60F' ? 15 : item.standardTemp;
-      rhoStd = calculateStandardDensity(rho, temp, numericTemp, item.oilType);
-      vcf = calculateVCF(rhoStd, temp, numericTemp, item.oilType);
+      const numericTempD = item.standardTemp === '60F' ? 15 : item.standardTemp;
+      rhoStd = calculateStandardDensity(rho, tempD, numericTempD, item.oilType);
+
+      const numericTempV = item.standardTemp === '60F' ? 15 : item.standardTemp;
+      vcf = calculateVCF(rhoStd, tempV, numericTempV, item.oilType);
     }
 
-    const gsv = vol * vcf;
+    let alphaCoeffHist = 0.000036;
+    if (item.inputs.steelMaterial === 'carbon_2a') {
+      alphaCoeffHist = 0.000024;
+    } else if (item.inputs.steelMaterial === 'stainless_3a') {
+      alphaCoeffHist = 0.000051;
+    } else if (item.inputs.steelMaterial === 'stainless_2a') {
+      alphaCoeffHist = 0.000034;
+    }
+
+    const fst = item.inputs.enableSteelExpansion
+      ? calculateSteelExpansionFactor(tempV, item.standardTemp, alphaCoeffHist)
+      : 1.0;
+
+    const volCorrected = vol * fst;
+    const gsv = volCorrected * vcf;
     const weightVac = gsv * (rhoStd / 1000);
     const rhoAir = rhoStd - 1.1;
     const weightAir = gsv * (rhoAir / 1000);
@@ -394,6 +487,8 @@ export default function GaugingSheet() {
     setResults({
       rhoStd,
       vcf,
+      fst,
+      volCorrected: parseFloat(volCorrected.toFixed(3)),
       gsv: parseFloat(gsv.toFixed(3)),
       weightVac: parseFloat(weightVac.toFixed(3)),
       weightAir: parseFloat(weightAir.toFixed(3)),
@@ -420,17 +515,22 @@ export default function GaugingSheet() {
 
   const handleCopyItem = (item: HistoryItem) => {
     const tempUnit = item.standardTemp === '60F' ? '°F' : '°C';
+    const volTemp = item.inputs.tempVol || item.inputs.tempObs;
+    const hasSteelExp = item.inputs.enableSteelExpansion;
+
     const text = `【石油及沥青计量计算结果】
 油品类型：${item.oilType === 'product' ? '成品油' : item.oilType === 'crude' ? '原油' : item.oilType === 'lube' ? '润滑油' : '沥青 (ASTM D4311)'}
 标准参考：${item.standardTemp === '60F' ? '60°F' : item.standardTemp + '°C'}
 --- 输入参数 ---
-观察油温: ${item.inputs.tempObs} ${tempUnit}
+密度测定温度: ${item.inputs.tempObs} ${tempUnit}
 ${item.oilType === 'asphalt' ? '标准密度' : '观察密度'}: ${item.inputs.densityObs} kg/m³
 计算体积: ${item.inputs.volumeObs} m³
+体积计算温度: ${volTemp} ${tempUnit}
+钢壁膨胀修正: ${hasSteelExp ? `已开启 (@${volTemp}${tempUnit})` : '未开启'}
 --- 计算结果 ---
 标准参考密度: ${item.results.rhoStd} kg/m³
-体积修正系数 (VCF): ${item.results.vcf.toFixed(5)}
-标准体积 (GSV): ${item.results.gsv.toLocaleString()} m³
+体积修正系数 (VCF @ ${volTemp}${tempUnit}): ${item.results.vcf.toFixed(5)}
+${hasSteelExp && item.results.fst ? `钢膨修正系数 (Fst @ ${volTemp}${tempUnit}): ${item.results.fst.toFixed(6)}\n钢膨修正后体积: ${item.results.volCorrected?.toLocaleString()} m³\n` : ''}标准体积 (GSV [${hasSteelExp ? `含钢膨@${volTemp}${tempUnit}与VCF` : `含VCF, 无钢膨`}]): ${item.results.gsv.toLocaleString()} m³
 商检空气重量 (Mass in Air): ${item.results.weightAir.toLocaleString()} t
 真空质量 (Mass in Vac): ${item.results.weightVac.toLocaleString()} t
 输油桶数 (GSV bbl): ${item.results.gsvBbl.toLocaleString()} bbl
@@ -546,96 +646,211 @@ ${item.oilType === 'asphalt' ? '标准密度' : '观察密度'}: ${item.inputs.d
         </div>
 
         {/* inputs form parameters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {oilType === 'asphalt'
-                ? `观测油温 (${standardTemp === '60F' ? '°F' : '°C'})`
-                : '视温度 / 观察油温 (°C)'}
-            </label>
-            <input
-              type="number"
-              step="any"
-              placeholder={oilType === 'asphalt' ? (standardTemp === '60F' ? '例如 275.0' : '例如 135.0') : '例如 24.5'}
-              value={tempObs}
-              onChange={(e) => {
-                const val = e.target.value;
-                setTempObs(val);
-                validateTemp(val);
-                setResults(null);
-              }}
-              className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
-                tempError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
-              }`}
-            />
-            {tempError && (
-              <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{tempError}</p>
-            )}
+        <div className="space-y-4">
+          {/* Density parameters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {oilType === 'asphalt'
+                  ? `密度测定温度 (${standardTemp === '60F' ? '°F' : '°C'})`
+                  : '密度测定温度 / 视温度 (°C)'}
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder={oilType === 'asphalt' ? (standardTemp === '60F' ? '例如 275.0' : '例如 135.0') : '例如 24.5'}
+                value={tempObs}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTempObs(val);
+                  validateTemp(val);
+                  setResults(null);
+                }}
+                className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
+                  tempError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
+                }`}
+              />
+              {tempError && (
+                <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{tempError}</p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {oilType === 'asphalt'
+                  ? (standardTemp === '60F' ? '60°F API度 (°API) / 比重 (SG 60/60°F)' : '15°C 标准密度 (kg/m³)')
+                  : '视密度 / 观察密度 (kg/m³)'}
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder={
+                  oilType === 'asphalt'
+                    ? (standardTemp === '60F' ? '例如 12.5 (°API) 或 0.985 (SG)' : '例如 1015')
+                    : '例如 820'
+                }
+                value={densityObs}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDensityObs(val);
+                  validateDensity(val);
+                  setResults(null);
+                }}
+                className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
+                  densityError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
+                }`}
+              />
+              {densityError ? (
+                <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{densityError}</p>
+              ) : (
+                /* Dynamic Recommended Range Info */
+                <div className="flex justify-between items-center text-[10px] mt-0.5 px-1 leading-none">
+                  <span className="text-slate-400 dark:text-slate-500 font-sans">
+                    {oilType === 'asphalt'
+                      ? (standardTemp === '60F'
+                          ? '支持 API度 (≤14.9°A列, 15°~35°B列) / SG (≥0.967A列, 0.85~0.966B列)'
+                          : '15°C 标准密度 (A列: ≥966 kg/m³, B列: 850 ~ 965 kg/m³)')
+                      : `设计适用范围: ${currentRange.min} ~ ${currentRange.max} kg/m³`}
+                  </span>
+                  {isOutOfRange && oilType !== 'asphalt' && (
+                    <span className="text-amber-600 dark:text-amber-400 font-extrabold font-sans animate-pulse">超出推荐范围</span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {oilType === 'asphalt'
-                ? (standardTemp === '60F' ? '60°F API度 (°API) / 比重 (SG 60/60°F)' : '15°C 标准密度 (kg/m³)')
-                : '视密度 / 观察密度 (kg/m³)'}
-            </label>
-            <input
-              type="number"
-              step="any"
-              placeholder={
-                oilType === 'asphalt'
-                  ? (standardTemp === '60F' ? '例如 12.5 (°API) 或 0.985 (SG)' : '例如 1015')
-                  : '例如 820'
-              }
-              value={densityObs}
-              onChange={(e) => {
-                const val = e.target.value;
-                setDensityObs(val);
-                validateDensity(val);
-                setResults(null);
-              }}
-              className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
-                densityError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
-              }`}
-            />
-            {densityError ? (
-              <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{densityError}</p>
-            ) : (
-              /* Dynamic Recommended Range Info */
-              <div className="flex justify-between items-center text-[10px] mt-0.5 px-1 leading-none">
-                <span className="text-slate-400 dark:text-slate-500 font-sans">
-                  {oilType === 'asphalt'
-                    ? (standardTemp === '60F'
-                        ? '支持 API度 (≤14.9°A列, 15°~35°B列) / SG (≥0.967A列, 0.85~0.966B列)'
-                        : '15°C 标准密度 (A列: ≥966 kg/m³, B列: 850 ~ 965 kg/m³)')
-                    : `设计适用范围: ${currentRange.min} ~ ${currentRange.max} kg/m³`}
-                </span>
-                {isOutOfRange && oilType !== 'asphalt' && (
-                  <span className="text-amber-600 dark:text-amber-400 font-extrabold font-sans animate-pulse">超出推荐范围</span>
-                )}
+          {/* Volume and Volume Temp section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                计算体积 (Observed Volume - m³)
+              </label>
+              <input
+                type="number"
+                step="any"
+                placeholder="例如 5000"
+                value={volumeObs}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setVolumeObs(val);
+                  validateVolume(val);
+                  setResults(null);
+                }}
+                className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
+                  volumeError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
+                }`}
+              />
+              {volumeError && (
+                <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{volumeError}</p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  体积温度 / 罐内油温 ({standardTemp === '60F' ? '°F' : '°C'})
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempVol(tempObs);
+                    validateTempVol(tempObs);
+                    setResults(null);
+                  }}
+                  className="text-[10px] text-orange-600 dark:text-orange-400 hover:underline cursor-pointer font-sans"
+                  title="同密度测定温度"
+                >
+                  [同密度温度]
+                </button>
               </div>
-            )}
+              <input
+                type="number"
+                step="any"
+                placeholder={standardTemp === '60F' ? '例如 76.0' : '例如 24.5'}
+                value={tempVol}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setTempVol(val);
+                  validateTempVol(val);
+                  setResults(null);
+                }}
+                className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
+                  tempVolError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
+                }`}
+              />
+              {tempVolError ? (
+                <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{tempVolError}</p>
+              ) : (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                  VCF 与钢膨修正均以此体积温度计算
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">计算体积 (Observed Volume - m³)</label>
-            <input
-              type="number"
-              step="any"
-              placeholder="例如 5000"
-              value={volumeObs}
-              onChange={(e) => {
-                const val = e.target.value;
-                setVolumeObs(val);
-                validateVolume(val);
-                setResults(null);
-              }}
-              className={`w-full bg-slate-50 dark:bg-slate-800 border focus:bg-white dark:focus:bg-slate-900 rounded-xl py-2 px-3 text-sm transition-all focus:outline-hidden font-mono text-slate-800 dark:text-slate-100 ${
-                volumeError ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-slate-700 focus:border-orange-500'
-              }`}
-            />
-            {volumeError && (
-              <p className="text-red-500 text-[11px] font-sans font-semibold mt-0.5">{volumeError}</p>
+          {/* Steel Tank Expansion Option (钢膨选项) */}
+          <div className="bg-slate-50/80 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="enable-steel-expansion"
+                  checked={enableSteelExpansion}
+                  onChange={(e) => {
+                    setEnableSteelExpansion(e.target.checked);
+                    setResults(null);
+                  }}
+                  className="w-4 h-4 rounded-md text-orange-500 focus:ring-orange-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                />
+                <label htmlFor="enable-steel-expansion" className="text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer">
+                  计算钢壁热膨胀修正 (钢膨修正 Fst / CTSH)
+                </label>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono">
+                {enableSteelExpansion ? `按温度 ${tempVol}${standardTemp === '60F' ? '°F' : '°C'} 修正` : '未开启 (Fst = 1.0)'}
+              </span>
+            </div>
+
+            {enableSteelExpansion && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 text-xs border-t border-slate-200/60 dark:border-slate-700/60">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold">油罐材质与膨胀计算模式</label>
+                  <select
+                    value={steelMaterial}
+                    onChange={(e) => {
+                      setSteelMaterial(e.target.value as any);
+                      setResults(null);
+                    }}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-mono text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="carbon_3a">碳钢罐 - 体膨胀 3α [ Fst = 1 + 0.0000120 × 3 × (t - {standardTemp === '60F' ? '60' : standardTemp}) ]</option>
+                    <option value="carbon_2a">碳钢罐 - 罐壁面积 2α [ Fst = 1 + 0.0000120 × 2 × (t - {standardTemp === '60F' ? '60' : standardTemp}) - GB/T 19779 ]</option>
+                    <option value="stainless_3a">不锈钢罐 - 体膨胀 3α [ Fst = 1 + 0.0000170 × 3 × (t - {standardTemp === '60F' ? '60' : standardTemp}) ]</option>
+                    <option value="stainless_2a">不锈钢罐 - 罐壁面积 2α [ Fst = 1 + 0.0000170 × 2 × (t - {standardTemp === '60F' ? '60' : standardTemp}) ]</option>
+                    <option value="custom">自定义系数 (手动输入)</option>
+                  </select>
+                </div>
+                {steelMaterial === 'custom' && (
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] text-slate-600 dark:text-slate-400 font-semibold">自定义膨胀总系数 K (1/°C)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={customSteelCoeff}
+                      onChange={(e) => {
+                        setCustomSteelCoeff(e.target.value);
+                        setResults(null);
+                      }}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-xs font-mono text-slate-800 dark:text-slate-200"
+                      placeholder="例如 0.000036"
+                    />
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 sm:col-span-2">
+                  * 示例说明：碳钢线膨胀系数 α = 12×10⁻⁶ /°C (0.0000120)。体膨胀公式 Fst = 1 + 0.0000120 × 3 × (t_vol - t_std)；罐壁面积修正公式 Fst = 1 + 0.0000120 × 2 × (t_vol - t_std)。
+                </p>
+              </div>
             )}
           </div>
         </div>
@@ -676,11 +891,29 @@ ${item.oilType === 'asphalt' ? '标准密度' : '观察密度'}: ${item.inputs.d
               </p>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-              <p className="text-slate-400 dark:text-slate-500 font-sans">体积修正系数 (VCF)</p>
+              <p className="text-slate-400 dark:text-slate-500 font-sans">体积修正系数 (VCF @ {tempVol}{standardTemp === '60F' ? '°F' : '°C'})</p>
               <p id="res-vcf" className="text-base font-bold text-orange-600 dark:text-orange-400 mt-0.5">
                 {results.vcf.toFixed(5)}
               </p>
             </div>
+
+            {/* Steel Expansion Factor and Corrected Volume */}
+            {enableSteelExpansion && (
+              <>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <p className="text-slate-400 dark:text-slate-500 font-sans">钢膨修正系数 (Fst)</p>
+                  <p id="res-fst" className="text-base font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                    {results.fst.toFixed(6)}
+                  </p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <p className="text-slate-400 dark:text-slate-500 font-sans">钢膨修正后体积 (V_cor)</p>
+                  <p id="res-vol-cor" className="text-base font-bold text-slate-800 dark:text-slate-200 mt-0.5">
+                    {results.volCorrected.toLocaleString()} <span className="text-[10px] font-sans font-normal text-slate-500 dark:text-slate-400">m³</span>
+                  </p>
+                </div>
+              </>
+            )}
 
             {/* GSV in Barrels (输油桶数) - Required High Visibility Field */}
             <div className="bg-amber-500/10 dark:bg-amber-950/20 p-3 rounded-xl border border-amber-500/20 dark:border-amber-900/30 col-span-2 flex justify-between items-center px-4">
@@ -692,6 +925,11 @@ ${item.oilType === 'asphalt' ? '标准密度' : '观察密度'}: ${item.inputs.d
               </div>
               <div className="text-right border-l border-amber-500/20 dark:border-amber-900/30 pl-4 py-1">
                 <p className="text-slate-500 dark:text-slate-400 font-sans text-[11px] font-semibold">标准体积 (GSV)</p>
+                <p className="text-[9px] text-amber-700/80 dark:text-amber-300/80 font-sans font-medium">
+                  {enableSteelExpansion
+                    ? `(含钢膨@${tempVol}${standardTemp === '60F' ? '°F' : '°C'} & VCF)`
+                    : `(含VCF@${tempVol}${standardTemp === '60F' ? '°F' : '°C'}, 无钢膨)`}
+                </p>
                 <p id="res-gsv" className="text-sm font-bold text-slate-800 dark:text-slate-200 mt-0.5 font-mono">
                   {results.gsv.toLocaleString()} <span className="text-[10px] font-sans font-normal text-slate-500 dark:text-slate-400">m³</span>
                 </p>
@@ -785,17 +1023,25 @@ ${item.oilType === 'asphalt' ? '标准密度' : '观察密度'}: ${item.inputs.d
                   <div>
                     <p className="text-slate-400 dark:text-slate-500 font-sans font-semibold">输入参数</p>
                     <p className="font-mono text-slate-700 dark:text-slate-300 mt-0.5 leading-relaxed">
-                      温: {item.inputs.tempObs} °C<br />
-                      密: {item.inputs.densityObs} kg/m³<br />
-                      体: {parseFloat(item.inputs.volumeObs).toLocaleString()} m³
+                      密度温: {item.inputs.tempObs} {item.standardTemp === '60F' ? '°F' : '°C'}<br />
+                      体积温: {item.inputs.tempVol || item.inputs.tempObs} {item.standardTemp === '60F' ? '°F' : '°C'}<br />
+                      密: {item.inputs.densityObs} kg/m³ | 体: {parseFloat(item.inputs.volumeObs).toLocaleString()} m³
                     </p>
                   </div>
                   <div className="sm:col-span-2 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 pt-1.5 sm:pt-0 sm:pl-2">
                     <p className="text-slate-400 dark:text-slate-500 font-sans font-semibold">计算结果</p>
                     <p className="font-mono text-slate-700 dark:text-slate-300 mt-0.5 leading-relaxed">
                       标密: <span className="font-bold">{item.results.rhoStd}</span> kg/m³ | 
-                      VCF: <span className="font-bold text-orange-600 dark:text-orange-400">{item.results.vcf.toFixed(5)}</span><br />
-                      标体(GSV): <span className="font-bold">{item.results.gsv.toLocaleString()}</span> m³<br />
+                      VCF(@{item.inputs.tempVol || item.inputs.tempObs}{item.standardTemp === '60F' ? '°F' : '°C'}): <span className="font-bold text-orange-600 dark:text-orange-400">{item.results.vcf.toFixed(5)}</span><br />
+                      标体(GSV): <span className="font-bold">{item.results.gsv.toLocaleString()}</span> m³ 
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-sans ml-1">
+                        [{item.inputs.enableSteelExpansion ? `含钢膨@${item.inputs.tempVol || item.inputs.tempObs}${item.standardTemp === '60F' ? '°F' : '°C'} & VCF` : `无钢膨, 含VCF`}]
+                      </span><br />
+                      {item.inputs.enableSteelExpansion && item.results.fst ? (
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-sans block my-0.5">
+                          钢膨修正 Fst(@{item.inputs.tempVol || item.inputs.tempObs}${item.standardTemp === '60F' ? '°F' : '°C'}): <span className="font-mono font-bold">{item.results.fst.toFixed(6)}</span> (修正后体积: {item.results.volCorrected?.toLocaleString()} m³)
+                        </span>
+                      ) : null}
                       商检空气重: <span className="font-bold text-slate-800 dark:text-slate-200">{item.results.weightAir.toLocaleString()}</span> t | 
                       桶数: <span className="font-bold text-amber-600 dark:text-amber-400">{item.results.gsvBbl.toLocaleString()}</span> bbl
                     </p>
