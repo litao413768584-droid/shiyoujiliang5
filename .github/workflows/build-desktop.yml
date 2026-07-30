@@ -28,11 +28,43 @@ jobs:
       - name: Setup NSIS path
         run: echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
-      - name: Clean and recreate tauri.conf.json
+      - name: Prepare icons directory and config
         run: |
-          Remove-Item -Recurse -Force src-tauri/icons -ErrorAction SilentlyContinue
+          # 确保 icons 目录存在但为空
           New-Item -ItemType Directory -Path src-tauri/icons -Force
-          echo '{"$schema":"https://schema.tauri.app/config/2","productName":"asphalt_calculator","version":"0.1.0","identifier":"com.asphaltcalculator.app","build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},"app":{"windows":[{"title":"沥青计量"}]},"bundle":{"icon":[],"targets":["nsis","msi"],"windows":{"certificateThumbprint":null,"digestAlgorithm":"sha256","timestampUrl":""}}}' > src-tauri/tauri.conf.json
+          # 删除目录内所有文件（如果有）
+          Remove-Item -Path src-tauri/icons\* -Recurse -Force -ErrorAction SilentlyContinue
+          # 生成配置文件
+          @'
+          {
+            "$schema": "https://schema.tauri.app/config/2",
+            "productName": "asphalt_calculator",
+            "version": "0.1.0",
+            "identifier": "com.asphaltcalculator.app",
+            "build": {
+              "beforeDevCommand": "npm run dev",
+              "devUrl": "http://localhost:1420",
+              "beforeBuildCommand": "npm run build",
+              "frontendDist": "../dist"
+            },
+            "app": {
+              "windows": [
+                {
+                  "title": "沥青计量"
+                }
+              ]
+            },
+            "bundle": {
+              "icon": [],
+              "targets": ["nsis", "msi"],
+              "windows": {
+                "certificateThumbprint": null,
+                "digestAlgorithm": "sha256",
+                "timestampUrl": ""
+              }
+            }
+          }
+          '@ > src-tauri/tauri.conf.json
           Get-Content src-tauri/tauri.conf.json
 
       - name: Install dependencies
@@ -74,11 +106,37 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Clean and recreate tauri.conf.json
+      - name: Prepare icons directory and config
         run: |
-          rm -rf src-tauri/icons
+          # 确保 icons 目录存在但为空
           mkdir -p src-tauri/icons
-          echo '{"$schema":"https://schema.tauri.app/config/2","productName":"asphalt_calculator","version":"0.1.0","identifier":"com.asphaltcalculator.app","build":{"beforeDevCommand":"npm run dev","devUrl":"http://localhost:1420","beforeBuildCommand":"npm run build","frontendDist":"../dist"},"app":{"windows":[{"title":"沥青计量"}]},"bundle":{"icon":[]}}' > src-tauri/tauri.conf.json
+          # 删除目录内所有文件（如果有）
+          rm -rf src-tauri/icons/*
+          # 生成配置文件
+          cat > src-tauri/tauri.conf.json << 'EOF'
+          {
+            "$schema": "https://schema.tauri.app/config/2",
+            "productName": "asphalt_calculator",
+            "version": "0.1.0",
+            "identifier": "com.asphaltcalculator.app",
+            "build": {
+              "beforeDevCommand": "npm run dev",
+              "devUrl": "http://localhost:1420",
+              "beforeBuildCommand": "npm run build",
+              "frontendDist": "../dist"
+            },
+            "app": {
+              "windows": [
+                {
+                  "title": "沥青计量"
+                }
+              ]
+            },
+            "bundle": {
+              "icon": []
+            }
+          }
+          EOF
           cat src-tauri/tauri.conf.json
 
       - name: Initialize Android project
