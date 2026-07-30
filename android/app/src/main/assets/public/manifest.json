@@ -1,0 +1,221 @@
+{
+  "id": "/",
+  "name": "石油计量专家套件",
+  "short_name": "石油计量",
+  "description": "专业级石油计量与油品计算套件，离线化设计。提供计量表、单位换算、双向密度换算、调和闪点等大宗液体运输计量必备计算器。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "tabbed",
+    "window-controls-overlay",
+    "minimal-ui"
+  ],
+  "background_color": "#f8fafc",
+  "theme_color": "#f97316",
+  "orientation": "any",
+  "categories": [
+    "utilities",
+    "productivity",
+    "business"
+  ],
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.oilmeasure.expert",
+      "id": "com.oilmeasure.expert"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/id6400000000"
+    }
+  ],
+  "iarc_rating_id": "00000000-0000-0000-0000-000000000000",
+  "icons": [
+    {
+      "src": "/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot_desktop.png",
+      "sizes": "1376x768",
+      "type": "image/png",
+      "label": "石油计量专家套件桌面版面板",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screenshot_mobile.png",
+      "sizes": "768x1376",
+      "type": "image/png",
+      "label": "石油计量专家套件内置计算器移动版",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "石油计量主页",
+      "short_name": "主页",
+      "description": "打开石油及沥青计量主要计算表",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "name": "石油计量计算数据",
+      "accept": {
+        "text/plain": [".txt", ".csv", ".oil", ".calc"]
+      },
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-or-navigate"
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+oilcalc",
+      "url": "/?url=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "石油计量小组件",
+      "short_name": "计量组件",
+      "description": "快速查看石油度量基础指标和小工具。",
+      "tag": "oilcalc-widget",
+      "template": "oilcalc-widget-template",
+      "ms_ac_template": "",
+      "data": "",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "/screenshot_mobile.png",
+          "sizes": "768x1376",
+          "type": "image/png"
+        }
+      ],
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "auth": false,
+      "update": 86400
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "note_taking": {
+    "new_note_url": "/?note=new"
+  },
+  "scope_extensions": [
+    {
+      "origin": "https://ais-dev-5v7hst2v2q2lqgdtx5y3zd-950998360856.asia-east1.run.app"
+    },
+    {
+      "origin": "https://ais-pre-5v7hst2v2q2lqgdtx5y3zd-950998360856.asia-east1.run.app"
+    },
+    {
+      "origin": "https://*.run.app"
+    },
+    {
+      "origin": "https://*.google.com"
+    }
+  ],
+  "tab_strip": {
+    "home_tab": {
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "scope": "/"
+    }
+  }
+}
