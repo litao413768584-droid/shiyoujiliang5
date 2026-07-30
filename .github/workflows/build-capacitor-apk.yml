@@ -1,0 +1,90 @@
+name: Build Capacitor APK
+
+on:
+  push:
+    branches: [main, master]
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Bun (if using bun)
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          if [ -f "bun.lock" ]; then
+            bun install
+          else
+            npm install
+          fi
+
+      - name: Build frontend
+        run: |
+          if [ -f "bun.lock" ]; then
+            bun run build
+          else
+            npm run build
+          fi
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync Capacitor
+        run: |
+          npx cap sync android
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Build Release APK (unsigned)
+        run: |
+          cd android
+          ./gradlew assembleRelease
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: capacitor-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK (unsigned)
+        uses: actions/upload-artifact@v4
+        with:
+          name: capacitor-release-unsigned-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release (if tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+          generate_release_notes: true
