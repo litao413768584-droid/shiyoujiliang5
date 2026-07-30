@@ -1,4 +1,4 @@
-const CACHE_NAME = 'petroleum-calc-v2';
+const CACHE_NAME = 'petroleum-calc-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -19,8 +19,14 @@ const ASSETS_TO_CACHE = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          await cache.add(asset);
+        } catch (e) {
+          console.warn('[Service Worker] Could not cache asset:', asset, e);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
@@ -44,7 +50,7 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
+      if (cachedResponse && cachedResponse.status === 200) {
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => {
