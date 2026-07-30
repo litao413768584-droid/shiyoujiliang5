@@ -1,73 +1,16 @@
-name: Build Tauri Apps
+﻿name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, master]
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-
-      - name: Install NSIS
-        run: choco install nsis
-
-      - name: Setup NSIS path
-        run: echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Create placeholder icon
-        run: |
-          Add-Type -AssemblyName System.Drawing
-          $bmp = New-Object System.Drawing.Bitmap(256, 256)
-          $g = [System.Drawing.Graphics]::FromImage($bmp)
-          $g.Clear([System.Drawing.Color]::FromArgb(33, 150, 243))
-          $font = New-Object System.Drawing.Font("Arial", 80, [System.Drawing.FontStyle]::Bold)
-          $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-          $sf = New-Object System.Drawing.StringFormat
-          $sf.Alignment = [System.Drawing.StringAlignment]::Center
-          $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
-          $g.DrawString("AC", $font, $brush, [System.Drawing.RectangleF]::new(0, 0, 256, 256), $sf)
-          $bmp.Save("app-icon.png")
-          $bmp.Dispose()
-          Write-Host "app-icon.png created successfully"
-
-      - name: Generate icons from placeholder
-        run: |
-          node_modules\.bin\tauri icon
-          if (Test-Path src-tauri/icons/icon.png) {
-            Write-Host "icon.png generated successfully"
-          } else {
-            Write-Host "icon.png not found, checking directory..."
-            Get-ChildItem src-tauri/icons/
-            exit 1
-          }
-
-      - name: Build Windows EXE
-        run: npx tauri build --target x86_64-pc-windows-msvc
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows-executable
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/asphalt_calculator.exe
-
   build-android:
     runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v4
 
@@ -77,10 +20,17 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Rust stable
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+          targets: aarch64-linux-android
+
+      - name: Install Ubuntu dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libglib2.0-dev libgtk-3-dev
 
       - name: Install dependencies
         run: npm install
@@ -94,41 +44,19 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Python PIL for icon generation
-        run: pip3 install pillow
-
-      - name: Create placeholder icon
+      - name: Generate icons
         run: |
-          python3 -c "
-          from PIL import Image, ImageDraw, ImageFont
-          img = Image.new('RGB', (256, 256), color=(33, 150, 243))
-          d = ImageDraw.Draw(img)
-          try:
-              font = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', 120)
-          except:
-              font = ImageFont.load_default()
-          d.text((128, 128), 'AC', fill='white', anchor='mm', font=font)
-          img.save('app-icon.png')
-          "
-          ls -la app-icon.png
+          npx tauri icon || echo "Icon generation skipped"
 
-      - name: Generate icons from placeholder
+      - name: Init Android
         run: |
-          npx tauri icon
-          if [ -f src-tauri/icons/icon.png ]; then
-            echo "icon.png generated successfully"
-            ls -la src-tauri/icons/
-          else
-            echo "icon.png not found!"
-            ls -la src-tauri/icons/ || echo "icons directory may not exist"
-            exit 1
+          if [ ! -d "src-tauri/gen/android" ]; then
+            npx tauri android init
           fi
 
-      - name: Initialize Android project
-        run: npx tauri android init
-
-      - name: Build Android APK
-        run: npx tauri android build --apk
+      # ⭐ 只构建 ARM64，体积最小
+      - name: Build APK (ARM64 only)
+        run: npx tauri android build --apk --target aarch64-linux-android
 
       - uses: actions/upload-artifact@v4
         with:

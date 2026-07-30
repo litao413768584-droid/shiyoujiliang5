@@ -1,34 +1,82 @@
 {
-  "$schema": "https://schema.tauri.app/config/2.0.0.json",
-  "productName": "Petroleum Calculator",
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "asphalt_calculator",
   "version": "1.0.0",
-  "identifier": "com.asphalt.calculator",
+  "identifier": "com.litao.asphalt_calculator",
   "build": {
-    "beforeBuildCommand": "npm run build",
-    "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:3000",
-    "frontendDist": "../dist"
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build",
+    "devUrl": "http://localhost:1420",
+    "distDir": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "Petroleum Calculator",
-        "width": 1200,
-        "height": 800,
-        "label": "main"
+        "title": "asphalt_calculator",
+        "width": 800,
+        "height": 600,
+        "resizable": true,
+        "fullscreen": false
       }
-    ]
+    ],
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "identifier": "com.litao.asphalt_calculator",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "removeUnusedCommands": true,
+    "android": {
+      "minSdkVersion": 23,
+      "targetSdkVersion": 34
+    },
+    "ios": {
+      "minSdkVersion": 13
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13"
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "publisher": "litao",
+    "category": "DeveloperTool",
+    "copyright": "",
+    "shortDescription": "",
+    "longDescription": "",
+    "deb": {
+      "depends": [],
+      "files": {}
+    },
+    "appimage": {
+      "bundleMediaFramework": false
+    },
+    "snap": {
+      "confinement": "strict",
+      "plugs": ["network", "network-bind"],
+      "grade": "stable"
+    }
+  },
+  "plugins": {
+    "shell": {
+      "open": true,
+      "execute": false,
+      "sidecar": false
+    },
+    "fs": {
+      "scope": [],
+      "allow": []
+    }
   }
 }
