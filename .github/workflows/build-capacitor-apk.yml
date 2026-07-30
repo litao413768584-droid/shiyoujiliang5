@@ -18,29 +18,19 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
-      - name: Setup Bun (if using bun)
+      - name: Setup Bun
         run: |
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        run: |
-          if [ -f "bun.lock" ]; then
-            bun install
-          else
-            npm install
-          fi
+        run: bun install
 
       - name: Build frontend
-        run: |
-          if [ -f "bun.lock" ]; then
-            bun run build
-          else
-            npm run build
-          fi
+        run: bun run build
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -52,8 +42,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Sync Capacitor
-        run: |
-          npx cap sync android
+        run: npx cap sync android
 
       - name: Build Debug APK
         run: |
