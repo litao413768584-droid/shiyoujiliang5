@@ -28,47 +28,34 @@ jobs:
       - name: Setup NSIS path
         run: echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
-      - name: Prepare icons directory and config
+      - name: Create placeholder icon
         run: |
-          # 确保 icons 目录存在但为空
-          New-Item -ItemType Directory -Path src-tauri/icons -Force
-          # 删除目录内所有文件（如果有）
-          Remove-Item -Path src-tauri/icons\* -Recurse -Force -ErrorAction SilentlyContinue
-          # 生成配置文件
-          @'
-          {
-            "$schema": "https://schema.tauri.app/config/2",
-            "productName": "asphalt_calculator",
-            "version": "0.1.0",
-            "identifier": "com.asphaltcalculator.app",
-            "build": {
-              "beforeDevCommand": "npm run dev",
-              "devUrl": "http://localhost:1420",
-              "beforeBuildCommand": "npm run build",
-              "frontendDist": "../dist"
-            },
-            "app": {
-              "windows": [
-                {
-                  "title": "沥青计量"
-                }
-              ]
-            },
-            "bundle": {
-              "icon": [],
-              "targets": ["nsis", "msi"],
-              "windows": {
-                "certificateThumbprint": null,
-                "digestAlgorithm": "sha256",
-                "timestampUrl": ""
-              }
-            }
-          }
-          '@ > src-tauri/tauri.conf.json
-          Get-Content src-tauri/tauri.conf.json
+          # 使用 PowerShell 创建一个简单的 PNG
+          Add-Type -AssemblyName System.Drawing
+          $bmp = New-Object System.Drawing.Bitmap(256, 256)
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.Clear([System.Drawing.Color]::FromArgb(33, 150, 243))
+          $font = New-Object System.Drawing.Font("Arial", 80, [System.Drawing.FontStyle]::Bold)
+          $brush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+          $sf = New-Object System.Drawing.StringFormat
+          $sf.Alignment = [System.Drawing.StringAlignment]::Center
+          $sf.LineAlignment = [System.Drawing.StringAlignment]::Center
+          $g.DrawString("AC", $font, $brush, [System.Drawing.RectangleF]::new(0, 0, 256, 256), $sf)
+          $bmp.Save("app-icon.png")
+          $bmp.Dispose()
+          Write-Host "app-icon.png created successfully"
 
-      - name: Install dependencies
-        run: npm install
+      - name: Generate icons from placeholder
+        run: |
+          npx tauri icon
+          # 验证图标已生成
+          if (Test-Path src-tauri/icons/icon.png) {
+            Write-Host "icon.png generated successfully"
+          } else {
+            Write-Host "icon.png not found, checking directory..."
+            Get-ChildItem src-tauri/icons/
+            exit 1
+          }
 
       - name: Build Windows EXE
         run: npx tauri build --target x86_64-pc-windows-msvc
@@ -106,38 +93,36 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Prepare icons directory and config
+      - name: Install Python PIL for icon generation
+        run: pip3 install pillow
+
+      - name: Create placeholder icon
         run: |
-          # 确保 icons 目录存在但为空
-          mkdir -p src-tauri/icons
-          # 删除目录内所有文件（如果有）
-          rm -rf src-tauri/icons/*
-          # 生成配置文件
-          cat > src-tauri/tauri.conf.json << 'EOF'
-          {
-            "$schema": "https://schema.tauri.app/config/2",
-            "productName": "asphalt_calculator",
-            "version": "0.1.0",
-            "identifier": "com.asphaltcalculator.app",
-            "build": {
-              "beforeDevCommand": "npm run dev",
-              "devUrl": "http://localhost:1420",
-              "beforeBuildCommand": "npm run build",
-              "frontendDist": "../dist"
-            },
-            "app": {
-              "windows": [
-                {
-                  "title": "沥青计量"
-                }
-              ]
-            },
-            "bundle": {
-              "icon": []
-            }
-          }
-          EOF
-          cat src-tauri/tauri.conf.json
+          python3 -c "
+          from PIL import Image, ImageDraw, ImageFont
+          img = Image.new('RGB', (256, 256), color=(33, 150, 243))
+          d = ImageDraw.Draw(img)
+          try:
+              font = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', 120)
+          except:
+              font = ImageFont.load_default()
+          d.text((128, 128), 'AC', fill='white', anchor='mm', font=font)
+          img.save('app-icon.png')
+          "
+          ls -la app-icon.png
+
+      - name: Generate icons from placeholder
+        run: |
+          npx tauri icon
+          # 验证图标已生成
+          if [ -f src-tauri/icons/icon.png ]; then
+            echo "icon.png generated successfully"
+            ls -la src-tauri/icons/
+          else
+            echo "icon.png not found!"
+            ls -la src-tauri/icons/ || echo "icons directory may not exist"
+            exit 1
+          fi
 
       - name: Initialize Android project
         run: npx tauri android init
