@@ -28,9 +28,11 @@ jobs:
       - name: Setup NSIS path
         run: echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
+      - name: Install dependencies
+        run: npm install
+
       - name: Create placeholder icon
         run: |
-          # 使用 PowerShell 创建一个简单的 PNG
           Add-Type -AssemblyName System.Drawing
           $bmp = New-Object System.Drawing.Bitmap(256, 256)
           $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -47,8 +49,7 @@ jobs:
 
       - name: Generate icons from placeholder
         run: |
-          npx tauri icon
-          # 验证图标已生成
+          node_modules\.bin\tauri icon
           if (Test-Path src-tauri/icons/icon.png) {
             Write-Host "icon.png generated successfully"
           } else {
@@ -114,7 +115,6 @@ jobs:
       - name: Generate icons from placeholder
         run: |
           npx tauri icon
-          # 验证图标已生成
           if [ -f src-tauri/icons/icon.png ]; then
             echo "icon.png generated successfully"
             ls -la src-tauri/icons/
