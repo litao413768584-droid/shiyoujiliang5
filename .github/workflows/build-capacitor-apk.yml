@@ -46,38 +46,69 @@ jobs:
         with:
           gradle-version: 8.13
 
-      - name: Generate valid app icons
+      - name: Generate valid app icons with Python
         run: |
           sudo apt-get update
-          sudo apt-get install -y imagemagick
+          sudo apt-get install -y python3-pip
+          pip3 install pillow
           
-          mkdir -p android/app/src/main/res/mipmap-mdpi
-          mkdir -p android/app/src/main/res/mipmap-hdpi
-          mkdir -p android/app/src/main/res/mipmap-xhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxhdpi
-          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          python3 << 'EOF'
+          import os
+          from PIL import Image, ImageDraw, ImageFont
           
-          convert xc:#2196F3 -resize 48x48 -fill white -gravity center -pointsize 30 -annotate 0 "A" android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          convert xc:#2196F3 -resize 48x48 -fill white -gravity center -pointsize 30 -annotate 0 "A" android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
-          convert xc:#FFFFFF -resize 48x48 -fill #2196F3 -gravity center -pointsize 20 -annotate 0 "A" android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
+          # 各分辨率配置
+          sizes = [
+              ('mipmap-mdpi', 48),
+              ('mipmap-hdpi', 72),
+              ('mipmap-xhdpi', 96),
+              ('mipmap-xxhdpi', 144),
+              ('mipmap-xxxhdpi', 192),
+          ]
           
-          convert xc:#2196F3 -resize 72x72 -fill white -gravity center -pointsize 44 -annotate 0 "A" android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          convert xc:#2196F3 -resize 72x72 -fill white -gravity center -pointsize 44 -annotate 0 "A" android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
-          convert xc:#FFFFFF -resize 72x72 -fill #2196F3 -gravity center -pointsize 30 -annotate 0 "A" android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+          bg_color = (33, 150, 243)  # 蓝色
+          text_color = (255, 255, 255)  # 白色
           
-          convert xc:#2196F3 -resize 96x96 -fill white -gravity center -pointsize 60 -annotate 0 "A" android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          convert xc:#2196F3 -resize 96x96 -fill white -gravity center -pointsize 60 -annotate 0 "A" android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
-          convert xc:#FFFFFF -resize 96x96 -fill #2196F3 -gravity center -pointsize 40 -annotate 0 "A" android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+          for folder, size in sizes:
+              path = f'android/app/src/main/res/{folder}'
+              os.makedirs(path, exist_ok=True)
+              
+              # 创建 launcher icon (蓝色背景 + 白色文字)
+              img = Image.new('RGB', (size, size), color=bg_color)
+              draw = ImageDraw.Draw(img)
+              try:
+                  font = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', size//2)
+              except:
+                  try:
+                      font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', size//2)
+                  except:
+                      font = ImageFont.load_default()
+              draw.text((size//2, size//2), 'A', fill=text_color, anchor='mm', font=font)
+              img.save(f'{path}/ic_launcher.png')
+              
+              # 创建 round icon (圆形)
+              img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+              draw = ImageDraw.Draw(img)
+              draw.ellipse([0, 0, size-1, size-1], fill=bg_color)
+              try:
+                  draw.text((size//2, size//2), 'A', fill=text_color, anchor='mm', font=font)
+              except:
+                  pass
+              img.save(f'{path}/ic_launcher_round.png')
+              
+              # 创建 foreground icon (白色背景 + 蓝色文字)
+              img = Image.new('RGB', (size, size), color=(255, 255, 255))
+              draw = ImageDraw.Draw(img)
+              try:
+                  draw.text((size//2, size//2), 'A', fill=bg_color, anchor='mm', font=font)
+              except:
+                  pass
+              img.save(f'{path}/ic_launcher_foreground.png')
           
-          convert xc:#2196F3 -resize 144x144 -fill white -gravity center -pointsize 90 -annotate 0 "A" android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          convert xc:#2196F3 -resize 144x144 -fill white -gravity center -pointsize 90 -annotate 0 "A" android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
-          convert xc:#FFFFFF -resize 144x144 -fill #2196F3 -gravity center -pointsize 60 -annotate 0 "A" android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+          print("All icons generated successfully!")
+          EOF
           
-          convert xc:#2196F3 -resize 192x192 -fill white -gravity center -pointsize 120 -annotate 0 "A" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          convert xc:#2196F3 -resize 192x192 -fill white -gravity center -pointsize 120 -annotate 0 "A" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
-          convert xc:#FFFFFF -resize 192x192 -fill #2196F3 -gravity center -pointsize 80 -annotate 0 "A" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
-          
-          ls -la android/app/src/main/res/mipmap-*/ic_launcher.png
+          # 验证文件
+          find android/app/src/main/res -name "ic_launcher*.png" -ls
 
       - name: Sync Capacitor
         run: npx cap sync android
