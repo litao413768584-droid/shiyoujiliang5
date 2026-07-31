@@ -46,7 +46,7 @@ jobs:
         with:
           gradle-version: 8.13
 
-      - name: Generate valid app icons with Python
+      - name: Generate valid images with Python
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-pip
@@ -56,7 +56,7 @@ jobs:
           import os
           from PIL import Image, ImageDraw, ImageFont
           
-          # 各分辨率配置
+          # 1. 生成应用图标
           sizes = [
               ('mipmap-mdpi', 48),
               ('mipmap-hdpi', 72),
@@ -65,50 +65,65 @@ jobs:
               ('mipmap-xxxhdpi', 192),
           ]
           
-          bg_color = (33, 150, 243)  # 蓝色
-          text_color = (255, 255, 255)  # 白色
+          bg_color = (33, 150, 243)
+          text_color = (255, 255, 255)
           
           for folder, size in sizes:
               path = f'android/app/src/main/res/{folder}'
               os.makedirs(path, exist_ok=True)
               
-              # 创建 launcher icon (蓝色背景 + 白色文字)
               img = Image.new('RGB', (size, size), color=bg_color)
               draw = ImageDraw.Draw(img)
               try:
                   font = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', size//2)
               except:
-                  try:
-                      font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', size//2)
-                  except:
-                      font = ImageFont.load_default()
+                  font = ImageFont.load_default()
               draw.text((size//2, size//2), 'A', fill=text_color, anchor='mm', font=font)
               img.save(f'{path}/ic_launcher.png')
               
-              # 创建 round icon (圆形)
               img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
               draw = ImageDraw.Draw(img)
               draw.ellipse([0, 0, size-1, size-1], fill=bg_color)
-              try:
-                  draw.text((size//2, size//2), 'A', fill=text_color, anchor='mm', font=font)
-              except:
-                  pass
+              draw.text((size//2, size//2), 'A', fill=text_color, anchor='mm', font=font)
               img.save(f'{path}/ic_launcher_round.png')
               
-              # 创建 foreground icon (白色背景 + 蓝色文字)
               img = Image.new('RGB', (size, size), color=(255, 255, 255))
               draw = ImageDraw.Draw(img)
-              try:
-                  draw.text((size//2, size//2), 'A', fill=bg_color, anchor='mm', font=font)
-              except:
-                  pass
+              draw.text((size//2, size//2), 'A', fill=bg_color, anchor='mm', font=font)
               img.save(f'{path}/ic_launcher_foreground.png')
           
-          print("All icons generated successfully!")
+          # 2. 生成启动画面图片 (splash.png)
+          splash_sizes = [
+              ('drawable', 800, 600),
+              ('drawable-land-mdpi', 800, 600),
+              ('drawable-port-mdpi', 600, 800),
+          ]
+          
+          for folder, width, height in splash_sizes:
+              path = f'android/app/src/main/res/{folder}'
+              os.makedirs(path, exist_ok=True)
+              
+              # 生成渐变背景的启动画面
+              img = Image.new('RGB', (width, height), color=(33, 150, 243))
+              draw = ImageDraw.Draw(img)
+              
+              # 添加一些装饰性文字
+              try:
+                  font = ImageFont.truetype('/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf', min(width, height)//6)
+              except:
+                  font = ImageFont.load_default()
+              
+              draw.text((width//2, height//2 - 30), 'Welcome', fill=(255, 255, 255), anchor='mm', font=font)
+              draw.text((width//2, height//2 + 60), 'Loading...', fill=(200, 200, 255), anchor='mm', font=font)
+              
+              img.save(f'{path}/splash.png')
+              print(f'Generated {folder}/splash.png ({width}x{height})')
+          
+          print("All images generated successfully!")
           EOF
           
           # 验证文件
-          find android/app/src/main/res -name "ic_launcher*.png" -ls
+          find android/app/src/main/res -name "*.png" -ls
 
       - name: Sync Capacitor
         run: npx cap sync android
