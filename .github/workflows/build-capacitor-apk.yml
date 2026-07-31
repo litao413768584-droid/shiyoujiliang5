@@ -41,37 +41,24 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      # ⭐ 使用 Gradle 官方 Action 安装 Gradle（不需要 wrapper）
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.7
+
       - name: Sync Capacitor
         run: npx cap sync android
-
-      # ⭐ 修复：从 Gradle 官方下载完整的 wrapper jar
-      - name: Download gradle-wrapper.jar
-        run: |
-          cd android
-          # 创建 wrapper 目录
-          mkdir -p gradle/wrapper
-          # 从 Gradle 官方 GitHub 下载完整 jar
-          wget -O gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
-          # 创建 properties 文件
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
-          chmod +x gradlew
 
       - name: Build Debug APK
         run: |
           cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon
 
       - name: Build Release APK (unsigned)
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon
+          gradle assembleRelease --no-daemon
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
