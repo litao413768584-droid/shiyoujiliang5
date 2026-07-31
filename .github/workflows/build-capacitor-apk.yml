@@ -44,19 +44,15 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # ⭐ 修复：使用 gradle init 生成完整的 wrapper
-      - name: Setup gradle wrapper
+      # ⭐ 修复：从 Gradle 官方下载完整的 wrapper jar
+      - name: Download gradle-wrapper.jar
         run: |
           cd android
-          # 清理旧的 wrapper 文件
-          rm -rf gradle/wrapper
-          # 使用 gradle init 生成新的 wrapper
-          gradle init --type basic --dsl groovy --project-name temp --no-daemon
-          # 复制生成的 wrapper 到项目根目录
-          cp -r gradle/wrapper gradle/
-          cp gradlew gradlew
-          cp gradlew.bat gradlew.bat
-          # 修改 gradle-wrapper.properties 使用 Gradle 8.7
+          # 创建 wrapper 目录
+          mkdir -p gradle/wrapper
+          # 从 Gradle 官方 GitHub 下载完整 jar
+          wget -O gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar
+          # 创建 properties 文件
           cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
