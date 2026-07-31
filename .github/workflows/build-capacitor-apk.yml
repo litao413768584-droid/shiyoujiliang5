@@ -46,23 +46,38 @@ jobs:
         with:
           gradle-version: 8.13
 
-      # ⭐ 新增：生成有效的图标文件
       - name: Generate valid app icons
         run: |
-          # 安装 ImageMagick 用于生成图标
           sudo apt-get update
           sudo apt-get install -y imagemagick
           
-          # 创建一个 48x48 的纯色图标
+          # 创建所有需要的目录
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          
+          # 生成各分辨率图标
           convert -size 48x48 xc:#2196F3 -fill white -gravity center -pointsize 30 -annotate 0 "A" android/app/src/main/res/mipmap-mdpi/ic_launcher.png
           convert -size 48x48 xc:#2196F3 -fill white -gravity center -pointsize 30 -annotate 0 "A" android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
           convert -size 48x48 xc:#FFFFFF -fill #2196F3 -gravity center -pointsize 20 -annotate 0 "A" android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png
           
-          # 复制到其他分辨率目录（如果有的话）
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png 2>/dev/null || true
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png 2>/dev/null || true
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png 2>/dev/null || true
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png 2>/dev/null || true
+          convert -size 72x72 xc:#2196F3 -fill white -gravity center -pointsize 44 -annotate 0 "A" android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert -size 72x72 xc:#2196F3 -fill white -gravity center -pointsize 44 -annotate 0 "A" android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          convert -size 72x72 xc:#FFFFFF -fill #2196F3 -gravity center -pointsize 30 -annotate 0 "A" android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png
+          
+          convert -size 96x96 xc:#2196F3 -fill white -gravity center -pointsize 60 -annotate 0 "A" android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          convert -size 96x96 xc:#2196F3 -fill white -gravity center -pointsize 60 -annotate 0 "A" android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          convert -size 96x96 xc:#FFFFFF -fill #2196F3 -gravity center -pointsize 40 -annotate 0 "A" android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png
+          
+          convert -size 144x144 xc:#2196F3 -fill white -gravity center -pointsize 90 -annotate 0 "A" android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          convert -size 144x144 xc:#2196F3 -fill white -gravity center -pointsize 90 -annotate 0 "A" android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          convert -size 144x144 xc:#FFFFFF -fill #2196F3 -gravity center -pointsize 60 -annotate 0 "A" android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png
+          
+          convert -size 192x192 xc:#2196F3 -fill white -gravity center -pointsize 120 -annotate 0 "A" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          convert -size 192x192 xc:#2196F3 -fill white -gravity center -pointsize 120 -annotate 0 "A" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          convert -size 192x192 xc:#FFFFFF -fill #2196F3 -gravity center -pointsize 80 -annotate 0 "A" android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png
 
       - name: Sync Capacitor
         run: npx cap sync android
