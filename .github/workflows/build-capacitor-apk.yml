@@ -1,4 +1,4 @@
-name: Build Capacitor APK
+﻿name: Build Capacitor APK
 
 on:
   push:
@@ -43,6 +43,14 @@ jobs:
 
       - name: Sync Capacitor
         run: npx cap sync android
+
+      # ⭐ 新增：修复 gradle-wrapper.jar
+      - name: Fix gradle wrapper
+        run: |
+          cd android
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          gradle wrapper
+          chmod +x gradlew
 
       - name: Build Debug APK
         run: |
