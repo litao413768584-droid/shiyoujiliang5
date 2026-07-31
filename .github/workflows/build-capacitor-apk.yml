@@ -44,22 +44,29 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # ⭐ 修复：使用 Gradle 8.7（兼容 AGP 8.5.0）
-      - name: Fix gradle wrapper
+      # ⭐ 修复：直接配置 gradle-wrapper.properties 使用 Gradle 8.7
+      - name: Setup gradle wrapper
         run: |
           cd android
+          # 删除可能损坏的文件
           rm -f gradle/wrapper/gradle-wrapper.jar
           rm -f gradle/wrapper/gradle-wrapper.properties
-          # 下载并配置 Gradle 8.7
-          wget https://services.gradle.org/distributions/gradle-8.7-bin.zip
-          unzip -q gradle-8.7-bin.zip
-          ./gradlew-8.7/bin/gradle wrapper --gradle-version 8.7
+          # 创建 gradle-wrapper.properties
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
+          # 下载 gradle-wrapper.jar
+          wget -O gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar
           chmod +x gradlew
 
       - name: Build Debug APK
         run: |
           cd android
-          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
       - name: Build Release APK (unsigned)
